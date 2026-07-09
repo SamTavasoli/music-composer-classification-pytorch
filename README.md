@@ -10,12 +10,34 @@ The goal is to build and compare two PyTorch models:
 2. CNN model for matrix-based music representation classification
 
 ## Dataset
-The dataset contains MIDI files from classical composers. Only four composers are used:
+
+The project uses the **MIDI Classic Music** dataset obtained from Kaggle.
+
+Only the following four composers are included in this project:
 
 - Bach
 - Beethoven
 - Chopin
 - Mozart
+
+The dataset is organized as follows:
+
+```
+data/
+└── raw/
+    ├── Bach/
+    ├── Beethoven/
+    ├── Chopin/
+    └── Mozart/
+```
+
+The original dataset was cleaned by removing all other composers and unnecessary files so that only the four required classes remain.
+
+The dataset can be downloaded here:
+
+**Google Drive:**  
+https://drive.google.com/drive/folders/1m_08SiSKKCfqiFbQVvNn7cIf7ZCiVdGd?usp=sharing
+
 
 ## Methods
 The project includes:
@@ -55,3 +77,4 @@ The project includes:
 - Marston Ward
 - Josue Sandoval
 - Saman Tavasoli
+
