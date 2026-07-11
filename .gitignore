@@ -22,9 +22,14 @@ Thumbs.db
 *.pt
 *.pth
 
-# Dataset
+# Dataset — do not commit raw MIDI files or extracted archives
+dataset/
 data/raw/*
 data/processed/*
+*.zip
+
+# Allow the filtered manifest to be committed if desired
+!dataset/midi_classic_music_filtered/manifest.json
 
 # Keep folders
 !data/raw/.gitkeep

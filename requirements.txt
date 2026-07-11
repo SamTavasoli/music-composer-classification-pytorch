@@ -4,9 +4,12 @@ torchaudio
 numpy
 pandas
 matplotlib
+seaborn
 scikit-learn
 music21
 pretty_midi
 mido
+jupyterlab
 jupyter
 tqdm
+kaggle

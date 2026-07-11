@@ -1,0 +1,215 @@
+\documentclass[stu, floatsintext]{apa7}
+
+\usepackage[american]{babel}
+\usepackage{csquotes}
+\usepackage[style=apa, backend=biber]{biblatex}
+\addbibresource{references.bib}
+
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{threeparttable}
+
+% Center figure/table captions (apa7 defaults to raggedright)
+\DeclareCaptionLabelFormat{tablelabelcenter}{\textbf{#1 #2}}
+\DeclareCaptionLabelFormat{figurelabelcenter}{\textbf{#1 #2}}
+\DeclareCaptionTextFormat{tabletextcenter}{\textit{#1}}
+\captionsetup[table]{justification=centering, labelformat=tablelabelcenter, textformat=tabletextcenter}
+\captionsetup[figure]{justification=centering, labelformat=figurelabelcenter, textfont=it}
+
+\title{Composer Classification from Symbolic MIDI Using LSTM and CNN Architectures}
+\shorttitle{Composer Classification with Deep Learning}
+
+\authorsnames{Marston Ward, Josue Sandoval, and Saman Tavasoli}
+\authorsaffiliations{University of San Diego}
+
+\course{AAI-511: Neural Networks and Deep Learning}
+\professor{Professor Andrew Van Benschoten}
+\duedate{\today}
+
+\abstract{This paper presents a deep learning approach to classifying the composer of a
+  classical work directly from symbolic MIDI data. Using the \textit{MIDI Classic Music}
+  dataset from Kaggle \parencite{Blanderbuss2025}, filtered to four composers
+  (Bach, Beethoven, Chopin, and Mozart), we extract note- and performance-level
+  features and compare two PyTorch architectures: a long short-term memory (LSTM)
+  network operating on note sequences and a convolutional neural network (CNN)
+  operating on piano-roll-style matrix representations. Because the filtered corpus
+  is imbalanced, we use class-weighted cross-entropy loss and data augmentation for
+  minority classes. Models are evaluated with accuracy, precision, recall, and
+  confusion matrices on held-out test data.}
+
+\keywords{composer classification, MIDI, deep learning, LSTM, CNN, music information retrieval}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+Automatic composer identification is a long-standing music information retrieval
+problem: given a piece of music, predict which composer wrote it. Symbolic
+representations such as MIDI expose pitch, duration, and timing information
+directly, without the confounds of audio timbre or recording conditions, making
+them a natural substrate for sequence and pattern-based deep learning models.
+
+\section{Related Work}
+\textcite{Hochreiter1997} introduced the long short-term memory architecture,
+which remains a standard approach for modeling long-range dependencies in
+sequential data such as musical note sequences. \textcite{LeCun2015} describe
+convolutional architectures that are well suited to grid-structured
+representations such as piano rolls. \textcite{Kingma2015} introduced the Adam
+optimizer used to train both models in this study.
+
+\section{Method}
+
+\subsection{Dataset}
+The dataset used for this project is the \textit{MIDI Classic Music} corpus from
+Kaggle \parencite{Blanderbuss2025}. The archive contains MIDI files for many
+classical composers; for this study we filtered it to the four required
+composers: Bach, Beethoven, Chopin, and Mozart. The helper script
+\texttt{src/prepare\_dataset.py} downloads the archive (when
+\texttt{{\raise.17ex\hbox{$\scriptstyle\sim$}}/.kaggle/kaggle.json} is
+configured), extracts the four composer folders, and creates reproducible
+training, validation, and test splits using a fixed random seed. Class balance
+across the filtered corpus is shown in Figure~\ref{fig:class-distribution}.
+
+\begin{figure}[!htp]
+  \centering
+  \caption{Class Distribution Across the Four Composers}
+  \includegraphics[width=0.8\linewidth]{../figures/class_distribution.png}
+  \label{fig:class-distribution}
+\end{figure}
+
+The filtered dataset is imbalanced: Bach accounts for roughly 63\% of training
+files (717 of 1,141), whereas Chopin contributes only 8\% (95 of 1,141). To
+prevent the model from simply predicting the majority class, we use
+class-weighted cross-entropy loss during training and apply pitch-shift and
+time-stretch data augmentation to the minority classes. We also report
+per-class precision and recall alongside overall accuracy.
+
+\subsection{Exploratory Data Analysis}
+Before modeling, all 1,628 successfully parsed MIDI files were analyzed to
+extract per-file duration, tempo, note count, note density, pitch statistics,
+and velocity. Table~\ref{tab:eda-summary} summarizes these features by composer
+on the training split.
+
+\begin{table}[htbp]
+  \centering
+  \begin{threeparttable}
+    \caption{Composer-Level Feature Summary (Train Split)}
+    \label{tab:eda-summary}
+    \begin{tabular}{@{}lrrrr@{}}
+      \toprule
+      Composer & Duration (s) & Note density (notes/s) & Pitch range (semitones) & Tempo (BPM) \\
+      \midrule
+      Bach      & 160.0 & 9.5  & 42.8 & 90.3  \\
+      Beethoven & 529.0 & 14.0 & 62.1 & 117.9 \\
+      Chopin    & 223.8 & 11.3 & 61.9 & 110.4 \\
+      Mozart    & 393.5 & 13.9 & 55.3 & 109.5 \\
+      \bottomrule
+    \end{tabular}
+    \tablenote{Values are per-composer means computed from parsed MIDI metadata.
+      Two files failed to parse because of unsupported key-signature events and
+      were excluded from the analysis.}
+  \end{threeparttable}
+\end{table}
+
+Three findings shaped modeling decisions. First, note density differs
+substantially across composers---Bach's counterpoint averages 9.5 notes/s while
+Beethoven reaches 14.0 notes/s---making density a stronger discriminator than
+raw note count, which correlates strongly with file duration. Second, pitch
+range separates eras: Bach's Baroque writing occupies a narrower tessitura
+($M = 42.8$ semitones) than the Romantic-era Beethoven and Chopin
+($M \approx 62$ semitones), consistent with idiomatic keyboard-writing
+conventions. Third, tempo and note velocity often reflect MIDI-encoding
+defaults rather than genuine performance data, so neither is a reliable
+standalone feature.
+
+A principal component analysis of the engineered statistical features showed
+only modest separation between composer classes (Figure~\ref{fig:pca}),
+indicating that hand-crafted summary statistics alone are insufficient for
+reliable classification. This motivated the sequence-based (LSTM) and
+image-based (CNN, piano-roll) representations described below, which preserve
+temporal and structural information the aggregate statistics discard.
+
+Quantitatively, the first principal component explained 40.1\% of variance and
+the second explained 14.7\% (54.8\% cumulative), which is not enough to produce
+clear class clusters in two dimensions. Correlation analysis also indicated
+that raw note count and duration are strongly coupled, so we prioritize derived
+features such as note density and temporal representations that preserve
+rhythmic structure rather than relying only on aggregate counts.
+
+\begin{figure}[!htp]
+  \centering
+  \caption{Class Separability via PCA of Engineered Features}
+  \includegraphics[width=0.7\linewidth]{../figures/pca_features.png}
+  \label{fig:pca}
+\end{figure}
+
+\subsection{Preprocessing and Feature Extraction}
+MIDI files are parsed and note-, pitch-, duration-, and tempo-level features are
+extracted for exploratory analysis and model input (see
+Figures~\ref{fig:pitch-distributions}--\ref{fig:piano-rolls}).
+
+\begin{figure}[!htp]
+  \centering
+  \caption{Pitch Distributions by Composer}
+  \includegraphics[width=0.8\linewidth]{../figures/pitch_distributions.png}
+  \label{fig:pitch-distributions}
+\end{figure}
+
+\begin{figure}[!htp]
+  \centering
+  \caption{Example Piano Roll Representations}
+  \includegraphics[width=0.8\linewidth]{../figures/piano_rolls.png}
+  \label{fig:piano-rolls}
+\end{figure}
+
+\subsection{Model Architectures}
+
+\subsubsection{LSTM Model}
+The LSTM model consumes sequences of note events (pitch, duration, velocity) and
+predicts a composer label from the final hidden state.
+
+\subsubsection{CNN Model}
+The CNN model consumes fixed-size piano-roll matrices and predicts a composer
+label using stacked convolutional and pooling layers.
+
+\subsection{Training}
+Both models are trained with the Adam optimizer \parencite{Kingma2015}. Because
+the filtered dataset is imbalanced, we use class-weighted cross-entropy loss
+with inverse-frequency weights computed on the training split. We additionally
+augment minority-class training files with random pitch shifts ($\pm 1$ to
+$\pm 3$ semitones) and small time-stretch factors to improve generalization.
+Training stops when validation loss fails to improve for a fixed number of
+epochs, and the best validation checkpoint is retained for evaluation on the
+held-out test set.
+
+\section{Results}
+Table~\ref{tab:results} reports test-set accuracy, precision, and recall for
+each model.
+
+\begin{table}[htbp]
+  \centering
+  \begin{threeparttable}
+    \caption{Test Set Performance by Model}
+    \label{tab:results}
+    \begin{tabular}{@{}lrrr@{}}
+      \toprule
+      Model & Accuracy & Precision & Recall \\
+      \midrule
+      LSTM  & --       & --        & --     \\
+      CNN   & --       & --        & --     \\
+      \bottomrule
+    \end{tabular}
+    \tablenote{Results to be populated once model training and evaluation are complete.}
+  \end{threeparttable}
+\end{table}
+
+\section{Discussion}
+[Interpret results, discuss confusion patterns between composers, and compare
+the LSTM and CNN approaches.]
+
+\section{Conclusion}
+[Summarize findings and suggest directions for future work.]
+
+\printbibliography
+
+\end{document}
