@@ -22,6 +22,23 @@ Thumbs.db
 *.pt
 *.pth
 
+# Generated analysis/report artifacts
+figures/
+report/*.aux
+report/*.bbl
+report/*.bcf
+report/*.blg
+report/*.fdb_latexmk
+report/*.fls
+report/*.log
+report/*.out
+report/*.run.xml
+report/*.run 2.xml
+report/*.synctex.gz
+report/*.toc
+report/*.xdv
+report/*.pdf
+
 # Dataset — do not commit raw MIDI files or extracted archives
 dataset/
 data/raw/*
