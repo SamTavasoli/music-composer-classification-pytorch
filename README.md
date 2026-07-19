@@ -27,10 +27,10 @@ The helper script [`src/prepare_dataset.py`](src/prepare_dataset.py) downloads t
 
 | Composer  | Train | Dev | Test | Total |
 |-----------|-------|-----|------|-------|
-| Bach      | 717   | 154 | 153  | 1024  |
-| Beethoven | 149   | 32  | 32   | 213   |
-| Chopin    | 95    | 20  | 21   | 136   |
-| Mozart    | 180   | 39  | 38   | 257   |
+| Bach      | 709   | 152 | 153  | 1014  |
+| Beethoven | 146   | 31  | 31   | 208   |
+| Chopin    | 92    | 20  | 20   | 132   |
+| Mozart    | 178   | 38  | 38   | 254   |
 
 The filtered dataset is **imbalanced** (Bach is ~7.5× larger than Chopin). We address this with class-weighted cross-entropy loss and pitch-shift / time-stretch data augmentation for the minority classes.
 
@@ -101,19 +101,54 @@ The project includes:
 - pretty_midi
 - Kaggle API
 
+
+## Setup
+1. Clone the repository.
+
+2. Create a Python virtual environment:
+
+```bash
+python -m venv .venv
+```
+
+3. Activate the virtual environment.
+
+**Windows**
+
+```bash
+.venv\Scripts\activate
+```
+
+**macOS / Linux**
+
+```bash
+source .venv/bin/activate
+```
+
+4. Install the required Python packages:
+
+```bash
+pip install -r requirements.txt
+```
+
+5. Open the project in Visual Studio Code (or your preferred IDE).
+
+6. Select the project's **.venv** as the Python interpreter or Jupyter Notebook kernel before running the notebooks.
+
 ## Deliverables
 - Project Notebook
 - Project Report
 
 ## Project Structure
 
+- `.venv/` — Project Python virtual environment (not tracked by Git)
 - `dataset/` — Raw and filtered MIDI datasets (gitignored)
-- `data/` — Processed features / manifests
 - `figures/` — Generated plots
 - `notebooks/` — Jupyter notebooks
 - `src/` — Python source code
 - `models/` — Saved trained models
 - `report/` — APA7 LaTeX final project report (`report/main.tex`)
+
 
 ## Team Members
 
