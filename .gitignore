@@ -40,14 +40,14 @@ report/*.xdv
 report/*.pdf
 
 # Dataset — do not commit raw MIDI files or extracted archives
-dataset/
+
+dataset/*
+!dataset/.gitkeep
+
 dataset/raw/*
-dataset/processed/*
-*.zip
-
-# Allow the filtered manifest to be committed if desired
-!dataset/midi_classic_music_filtered/manifest.json
-
-# Keep folders
 !dataset/raw/.gitkeep
+
+dataset/processed/*
 !dataset/processed/.gitkeep
+
+*.zip
