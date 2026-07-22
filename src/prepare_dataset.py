@@ -26,17 +26,17 @@ from typing import Iterable
 
 import numpy as np
 
+from project_config import PROCESSED_DATA_DIR, RAW_DATA_DIR, SEED
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATASET_ROOT = PROJECT_ROOT / "dataset"
+DATASET_ROOT = RAW_DATA_DIR
 KAGGLE_DATASET = "blanderbuss/midi-classic-music"
 SOURCE_DIR_NAME = "midiclassics"
 TARGET_DIR_NAME = "midi_classic_music_filtered"
 
 TARGET_COMPOSERS = ["Bach", "Beethoven", "Chopin", "Mozart"]
-SEED = 511
 
 # Default split proportions (train / dev / test)
 SPLIT_PROPORTIONS = (0.70, 0.15, 0.15)
@@ -168,7 +168,11 @@ def prepare_dataset(
         A nested dict mapping composer -> split -> file count.
     """
     source_root = dataset_root / SOURCE_DIR_NAME
-    target_root = Path(output_root) if output_root else dataset_root / TARGET_DIR_NAME
+    target_root = (
+        Path(output_root)
+        if output_root
+        else PROCESSED_DATA_DIR / TARGET_DIR_NAME
+    )
 
     if not source_root.exists():
         raise FileNotFoundError(f"Source dataset not found: {source_root}")

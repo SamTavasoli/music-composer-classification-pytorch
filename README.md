@@ -7,7 +7,7 @@ This project uses deep learning to classify classical piano works by composer fr
 The goal is to build and compare two PyTorch models for four-way composer classification:
 
 1. LSTM model for sequence-based MIDI note classification
-2. CNN model for matrix-based music representation classification
+2. One-dimensional CNN model for local symbolic-note pattern classification
 
 ## Dataset
 
@@ -21,7 +21,10 @@ The full archive contains works by many composers. This project uses only the fo
 - **Chopin**
 - **Mozart**
 
-The helper script [`src/prepare_dataset.py`](src/prepare_dataset.py) downloads the archive from Kaggle, filters these four composers, and creates reproducible `train`, `dev`, and `test` splits.
+The helper script [`src/prepare_dataset.py`](src/prepare_dataset.py) downloads
+the archive. The master workflow then removes unreadable files and exact
+duplicates before creating its deterministic 70/15/15 train, validation, and
+test manifest.
 
 ### Class distribution after filtering
 
@@ -30,25 +33,28 @@ The helper script [`src/prepare_dataset.py`](src/prepare_dataset.py) downloads t
 | Bach      | 709   | 152 | 153  | 1014  |
 | Beethoven | 146   | 31  | 31   | 208   |
 | Chopin    | 92    | 20  | 20   | 132   |
-| Mozart    | 178   | 38  | 38   | 254   |
+| Mozart    | 178   | 38   | 38   | 254   |
 
-The filtered dataset is **imbalanced** (Bach is ~7.5× larger than Chopin). We address this with class-weighted cross-entropy loss and pitch-shift / time-stretch data augmentation for the minority classes.
+The 1,608-file clean manifest excludes 22 invalid or duplicate MIDI files. The
+training split is **imbalanced** (Bach is ~7.7× larger than Chopin), so both
+baselines use inverse-frequency class-weighted cross-entropy loss.
 
 > **Do not push the dataset to GitHub.** The raw MIDI files are large and should not be committed to version control. `dataset/` is already ignored by git.
 
 ## EDA Findings
 
-Exploratory data analysis (EDA) was run on the filtered four-composer dataset in `notebooks/eda.ipynb`.
+Exploratory data analysis (EDA) is run and cached by
+[`notebooks/master_composer_classification.ipynb`](notebooks/master_composer_classification.ipynb).
 
 ### Parsing and data quality
 
-- Successfully parsed files: **1,628 / 1,630**
-- Parse failures: **2 files** (unsupported key-signature metadata)
-- All key EDA plots are exported to `figures/`.
+- Clean manifest: **1,608 valid files**
+- Exclusions: **22 malformed or duplicate files**
+- EDA metadata and plots are generated once, then cached for subsequent runs.
 
 ### Key quantitative findings (train split)
 
-- **Class imbalance is substantial**: 717 Bach files vs 95 Chopin files.
+- **Class imbalance is substantial**: 709 Bach files vs 92 Chopin files.
 - **Duration differs strongly by composer**:
 	- Bach: 160.0s mean
 	- Beethoven: 529.0s mean
@@ -67,16 +73,27 @@ Exploratory data analysis (EDA) was run on the filtered four-composer dataset in
 
 ### Feature-space insight
 
-- PCA on engineered features shows only **modest separation** between classes.
-- First two PCs explain approximately **54.8%** of variance (PC1: 40.1%, PC2: 14.7%).
-- Conclusion: summary statistics alone are not sufficient; sequence-aware inputs (LSTM note sequences and CNN piano rolls) are justified.
+- The master workflow retains note sequences rather than reducing the task to
+	summary features, allowing both baselines to model pitch and timing patterns.
 
 ### Modeling decisions informed by EDA
 
 - Use **class-weighted loss** for imbalance.
-- Apply **augmentation** to minority composers.
 - Track **per-class precision/recall** and confusion matrices, not just overall accuracy.
-- Standardize fixed-size representations for both LSTM and CNN pipelines.
+- Standardize fixed-length note-sequence representations for both LSTM and CNN pipelines.
+
+## Current Validation Results
+
+The master notebook was executed on the fixed clean manifest using PyTorch MPS
+on Apple Silicon. The held-out test split was not used.
+
+| Model | Best validation epoch | Accuracy | Weighted F1 | Macro F1 |
+|---|---:|---:|---:|---:|
+| LSTM | 12 | 0.747 | 0.752 | 0.621 |
+| CNN | 6 | **0.805** | **0.778** | **0.676** |
+
+The CNN improved validation accuracy by 5.8 percentage points. The generated
+loss curves and validation confusion matrices are tracked in [`figures/`](figures).
 
 ## Methods
 The project includes:
@@ -105,35 +122,52 @@ The project includes:
 ## Setup
 1. Clone the repository.
 
-2. Create a Python virtual environment:
+2. Install [Pixi](https://pixi.sh/) if it is not already available on your system.
 
 ```bash
-python -m venv .venv
+curl -fsSL https://pixi.sh/install.sh | sh
 ```
 
-3. Activate the virtual environment.
-
-**Windows**
+3. Create the project-local environment from the tracked lockfile:
 
 ```bash
-.venv\Scripts\activate
+pixi install
 ```
 
-**macOS / Linux**
+Pixi creates `.pixi/` inside this repository. It is local to each collaborator
+and is not committed; `pixi.toml` and `pixi.lock` define the shared environment.
+
+4. Start JupyterLab through Pixi:
 
 ```bash
-source .venv/bin/activate
+pixi run notebook
 ```
 
-4. Install the required Python packages:
+5. Select the Pixi Python environment as the VS Code notebook kernel, then run
+the master notebook in order:
 
 ```bash
-pip install -r requirements.txt
+notebooks/master_composer_classification.ipynb
 ```
 
-5. Open the project in Visual Studio Code (or your preferred IDE).
+On Apple Silicon, PyTorch automatically uses the Metal Performance Shaders (MPS)
+backend when it is available. The master notebook detects MPS and otherwise falls
+back to CPU.
 
-6. Select the project's **.venv** as the Python interpreter or Jupyter Notebook kernel before running the notebooks.
+### Useful Pixi Commands
+
+```bash
+pixi run check-imports
+pixi run prepare-dataset
+pixi run notebook
+```
+
+To execute the master noninteractively after preparation:
+
+```bash
+pixi run jupyter nbconvert --to notebook --execute --inplace \
+	--ExecutePreprocessor.timeout=0 notebooks/master_composer_classification.ipynb
+```
 
 ## Deliverables
 - Project Notebook
@@ -141,9 +175,10 @@ pip install -r requirements.txt
 
 ## Project Structure
 
-- `.venv/` — Project Python virtual environment (not tracked by Git)
-- `dataset/` — Raw and filtered MIDI datasets (gitignored)
-- `figures/` — Generated plots
+- `.pixi/` — Project-local Pixi environment (not tracked by Git)
+- `pixi.toml` / `pixi.lock` — Shared, reproducible environment definition
+- `dataset/` — Raw MIDI datasets and local processing caches (gitignored)
+- `figures/` — Reproducible PNG plots exported from the executed master notebook
 - `notebooks/` — Jupyter notebooks
 - `src/` — Python source code
 - `models/` — Saved trained models
