@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Composer classification from symbolic MIDI using PyTorch"
 authors = ["AAI-511 Group 6"]
 channels = ["conda-forge"]
-platforms = ["osx-arm64"]
+platforms = ["osx-arm64", "linux-64", "win-64"]
 
 [dependencies]
 python = ">=3.11,<3.13"
@@ -24,4 +24,4 @@ pretty_midi = ">=0.2.10,<0.3"
 [tasks]
 notebook = "jupyter lab"
 prepare-dataset = "python src/prepare_dataset.py"
-check-imports = "python -c \"import numpy, pandas, pretty_midi, sklearn, matplotlib, seaborn, torch; print(f'PyTorch {torch.__version__}; MPS available: {torch.backends.mps.is_available()}')\""
+check-imports = "python -c \"import numpy, pandas, pretty_midi, sklearn, matplotlib, seaborn, torch; print(f'PyTorch {torch.__version__}; MPS available: {torch.backends.mps.is_available()}; CUDA available: {torch.cuda.is_available()}')\""

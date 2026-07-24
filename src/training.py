@@ -66,11 +66,21 @@ def train_lstm(
     device: torch.device,
     epochs: int,
     checkpoint_path: Path,
+    early_stopping_patience: int | None = 5,
 ) -> tuple[dict[str, list[float]], Evaluation]:
-    """Train with validation checkpointing, returning history and the best evaluation."""
+    """Train with validation checkpointing and early stopping on validation performance.
+
+    Checkpoint selection and the early-stopping counter both use validation
+    accuracy (validation loss as a tie-break), so training halts once the model
+    has gone ``early_stopping_patience`` epochs without a new best checkpoint.
+    This directly targets the overfitting pattern observed in earlier runs,
+    where later epochs kept lowering train loss while validation loss diverged.
+    """
     history = {"train_loss": [], "train_accuracy": [], "validation_loss": [], "validation_accuracy": []}
     best_evaluation: Evaluation | None = None
     best_state: dict[str, torch.Tensor] | None = None
+    best_epoch = 0
+    epochs_without_improvement = 0
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
 
     for epoch in range(1, epochs + 1):
@@ -106,7 +116,17 @@ def train_lstm(
         ):
             best_evaluation = validation
             best_state = deepcopy(model.state_dict())
+            best_epoch = epoch
+            epochs_without_improvement = 0
             torch.save({"epoch": epoch, "model_state_dict": best_state}, checkpoint_path)
+        else:
+            epochs_without_improvement += 1
+            if early_stopping_patience is not None and epochs_without_improvement >= early_stopping_patience:
+                print(
+                    f"Early stopping at epoch {epoch:02d}: no validation improvement in "
+                    f"{early_stopping_patience} epochs (best epoch {best_epoch:02d})."
+                )
+                break
 
     if best_state is None or best_evaluation is None:
         raise RuntimeError("Training did not process any batches.")

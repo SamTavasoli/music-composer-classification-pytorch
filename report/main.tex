@@ -34,9 +34,11 @@
   memory (LSTM) and one-dimensional convolutional neural network (CNN) baselines
   consume fixed-length sequences of pitch, velocity, note duration, and onset
   interval. Inverse-frequency class weights address the imbalanced training
-  distribution. On the shared validation split, the CNN achieved .805 accuracy,
-  exceeding the LSTM's .747. Both models are selected only with validation
-  performance; the test split remains reserved for final evaluation.}
+  distribution, and Adam weight decay with validation-based early stopping
+  curbs the overfitting observed when training ran a fixed 20 epochs. On the
+  shared validation split, the CNN achieved .826 accuracy, exceeding the
+  LSTM's .743. Both models are selected only with validation performance; the
+  test split remains reserved for final evaluation.}
 
 \keywords{composer classification, MIDI, deep learning, LSTM, CNN, reproducibility, music information retrieval}
 
@@ -182,19 +184,25 @@ assignments, training-only normalization, class-weighting strategy, and
 validation-based model selection as the LSTM.
 
 \subsection{Training}
-Both baselines are trained for 20 epochs with Adam \parencite{Kingma2015} at a
-learning rate of .001. Inverse-frequency class weights are computed from the
-training labels as $w_c = N/(K n_c)$, where $N$ is the number of training files,
-$K$ is the number of classes, and $n_c$ is the number of files for class $c$.
-Gradients are clipped to a maximum norm of 1.0. At every epoch, the model is
-evaluated on the validation split. The checkpoint with the highest validation
-accuracy is retained; validation loss breaks ties. Neither augmentation nor a
-test result is claimed because the test split remains held out.
+Both baselines are trained for up to 20 epochs with Adam \parencite{Kingma2015}
+at a learning rate of .001 and a weight decay of $1\times10^{-4}$. Inverse-frequency
+class weights are computed from the training labels as $w_c = N/(K n_c)$, where
+$N$ is the number of training files, $K$ is the number of classes, and $n_c$ is
+the number of files for class $c$. Gradients are clipped to a maximum norm of
+1.0. At every epoch, the model is evaluated on the validation split. The
+checkpoint with the highest validation accuracy is retained; validation loss
+breaks ties. Training stops early once five consecutive epochs pass without a
+new best checkpoint. Weight decay and early stopping were added after an initial
+unregularized run showed clear overfitting: training accuracy for the CNN
+reached 96.8\% by epoch 20 while validation loss became unstable, and the
+LSTM's validation loss began rising after epoch 10 despite falling training
+loss. Neither augmentation nor a test result is claimed because the test split
+remains held out.
 
 \section{Results}
 The master notebook evaluated both baselines on the same 241-file validation
-split. The CNN was the stronger validation model, improving accuracy by 5.8
-percentage points and weighted F1 by 2.6 percentage points over the LSTM.
+split. The CNN was the stronger validation model, improving accuracy by 8.3
+percentage points and weighted F1 by 8.5 percentage points over the LSTM.
 Table~\ref{tab:results} reports the selected checkpoints. The 242-file test
 split remains sealed.
 
@@ -207,21 +215,25 @@ split remains sealed.
       \toprule
       Model & Epoch & Accuracy & \shortstack{Weighted\\F1} & \shortstack{Macro\\F1} & Test evaluation \\
       \midrule
-      LSTM baseline & 12 & .747 & .752 & .621 & Reserved \\
-      CNN baseline & 6 & .805 & .778 & .676 & Reserved \\
+      LSTM baseline & 6 & .743 & .738 & .606 & Reserved \\
+      CNN baseline & 9 & .826 & .823 & .740 & Reserved \\
       \bottomrule
     \end{tabular}
-    \tablenote{Metrics are from the validation-selected checkpoints trained on
-      the fixed clean manifest. The test split was not evaluated.}
+    \tablenote{Metrics are from the validation-selected, early-stopped checkpoints
+      trained with weight-decayed Adam on the fixed clean manifest. The test
+      split was not evaluated.}
   \end{threeparttable}
 \end{table}
 
-Figure~\ref{fig:loss-curves} shows that both models reached their strongest
-validation accuracy before epoch 20, which supports checkpoint selection rather
-than using the final epoch. Figures~\ref{fig:lstm-matrix} and
-\ref{fig:cnn-matrix} show the class-level outcome. The CNN improved recall for
-Chopin (.800 versus .750), while both models continued to confuse Beethoven and
-Mozart more often than Bach.
+Figure~\ref{fig:loss-curves} shows that both models triggered early stopping
+well before the 20-epoch budget (LSTM at epoch 11, CNN at epoch 14), which
+supports checkpoint selection rather than using the final epoch. At its
+selected checkpoint, the CNN's training accuracy (82.8\%) nearly matches its
+validation accuracy (82.6\%), a far smaller generalization gap than the
+unregularized run. Figures~\ref{fig:lstm-matrix} and \ref{fig:cnn-matrix} show
+the class-level outcome. The CNN improved recall for Chopin (.800 versus .600)
+and Beethoven (.677 versus .323), while both models continued to underperform
+on Beethoven and Mozart relative to Bach.
 
 \begin{figure}[htbp]
   \centering
@@ -248,6 +260,13 @@ aggregate EDA summaries discard. Class weighting remains particularly important:
 without it, a high overall accuracy could be driven primarily by Bach, the
 largest class. The class-specific reports show that accuracy alone conceals lower
 recall for Beethoven and Mozart.
+
+Weight decay and validation-based early stopping were necessary additions: an
+earlier unregularized run reached over 90\% training accuracy for both
+architectures while validation loss stagnated or worsened, which would have
+inflated any eventual test-set claim. Selecting checkpoints from a
+regularized, early-stopped run gives a more defensible estimate of
+generalization before the test split is finally opened.
 
 The workflow establishes a fair comparison condition: both architectures use the
 same fixed manifest, feature transformation, class weighting, and test-isolation

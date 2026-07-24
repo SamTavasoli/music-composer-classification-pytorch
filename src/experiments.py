@@ -25,6 +25,8 @@ class ExperimentConfig:
     batch_size: int | None = None
     epochs: int = 20
     learning_rate: float = 1e-3
+    weight_decay: float = 1e-4
+    early_stopping_patience: int = 5
     regenerate_manifest: bool = False
     refresh_eda: bool = False
 
@@ -128,7 +130,7 @@ def run_lstm_baseline(
     model = LSTMComposerClassifier(vocab_size=129, num_classes=len(COMPOSERS)).to(data.device)
     weights = class_weights(train_labels, len(COMPOSERS)).to(data.device)
     criterion = nn.CrossEntropyLoss(weight=weights)
-    optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
+    optimizer = optim.Adam(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
     history, validation = train_lstm(
         model=model,
         train_loader=data.train_loader,
@@ -138,6 +140,7 @@ def run_lstm_baseline(
         device=data.device,
         epochs=config.epochs,
         checkpoint_path=MODELS_DIR / "best_lstm_model.pt",
+        early_stopping_patience=config.early_stopping_patience,
     )
     return BaselineResult(
         model=model,
@@ -156,7 +159,7 @@ def run_cnn_baseline(
     model = CNNComposerClassifier(vocab_size=129, num_classes=len(COMPOSERS)).to(data.device)
     weights = class_weights(train_labels, len(COMPOSERS)).to(data.device)
     criterion = nn.CrossEntropyLoss(weight=weights)
-    optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
+    optimizer = optim.Adam(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
     history, validation = train_lstm(
         model=model,
         train_loader=data.train_loader,
@@ -166,6 +169,7 @@ def run_cnn_baseline(
         device=data.device,
         epochs=config.epochs,
         checkpoint_path=MODELS_DIR / "best_cnn_model.pt",
+        early_stopping_patience=config.early_stopping_patience,
     )
     return BaselineResult(
         model=model,

@@ -87,13 +87,21 @@ Exploratory data analysis (EDA) is run and cached by
 The master notebook was executed on the fixed clean manifest using PyTorch MPS
 on Apple Silicon. The held-out test split was not used.
 
+Early runs without regularization showed clear overfitting: training accuracy
+kept climbing past 90% (CNN: 96.8%) while validation loss stopped improving and
+became unstable. Both baselines now use Adam with weight decay (1e-4) and stop
+training once validation accuracy has not improved for 5 consecutive epochs.
+
 | Model | Best validation epoch | Accuracy | Weighted F1 | Macro F1 |
 |---|---:|---:|---:|---:|
-| LSTM | 12 | 0.747 | 0.752 | 0.621 |
-| CNN | 6 | **0.805** | **0.778** | **0.676** |
+| LSTM | 6 | 0.743 | 0.738 | 0.606 |
+| CNN | 9 | **0.826** | **0.823** | **0.740** |
 
-The CNN improved validation accuracy by 5.8 percentage points. The generated
-loss curves and validation confusion matrices are tracked in [`figures/`](figures).
+The CNN improved validation accuracy by 8.3 percentage points and weighted F1
+by 8.5 points. At its selected checkpoint the CNN's training accuracy (82.8%)
+nearly matches its validation accuracy (82.6%), a much smaller generalization
+gap than the unregularized run. The generated loss curves and validation
+confusion matrices are tracked in [`figures/`](figures).
 
 ## Methods
 The project includes:
@@ -151,8 +159,11 @@ notebooks/master_composer_classification.ipynb
 ```
 
 On Apple Silicon, PyTorch automatically uses the Metal Performance Shaders (MPS)
-backend when it is available. The master notebook detects MPS and otherwise falls
-back to CPU.
+backend when it is available. `src/training.py`'s `choose_device()` prefers MPS,
+then falls back to CUDA on Linux/Windows machines with an NVIDIA GPU, and finally
+CPU. `pixi.toml` locks `osx-arm64`, `linux-64`, and `win-64`, so any teammate can
+run `pixi install` on their own machine and train with whichever accelerator is
+available.
 
 ### Useful Pixi Commands
 
