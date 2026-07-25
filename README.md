@@ -28,7 +28,7 @@ test manifest.
 
 ### Class distribution after filtering
 
-| Composer  | Train | Dev | Test | Total |
+| Composer  | Train | Validation | Test | Total |
 |-----------|-------|-----|------|-------|
 | Bach      | 709   | 152 | 153  | 1014  |
 | Beethoven | 146   | 31  | 31   | 208   |
@@ -56,25 +56,29 @@ Exploratory data analysis (EDA) is run and cached by
 
 - **Class imbalance is substantial**: 709 Bach files vs 92 Chopin files.
 - **Duration differs strongly by composer**:
-	- Bach: 160.0s mean
-	- Beethoven: 529.0s mean
-	- Chopin: 223.8s mean
-	- Mozart: 393.5s mean
+	- Bach: 160.3s mean
+	- Beethoven: 518.3s mean
+	- Chopin: 222.3s mean
+	- Mozart: 415.5s mean
 - **Note density is discriminative**:
-	- Bach: 9.5 notes/s
-	- Beethoven: 14.0 notes/s
-	- Chopin: 11.3 notes/s
-	- Mozart: 13.9 notes/s
+	- Bach: 9.3 notes/s
+	- Beethoven: 14.5 notes/s
+	- Chopin: 11.6 notes/s
+	- Mozart: 13.7 notes/s
 - **Pitch range separates styles/eras**:
-	- Bach: 42.8 semitones
-	- Beethoven: 62.1 semitones
-	- Chopin: 61.9 semitones
+	- Bach: 43.1 semitones
+	- Beethoven: 61.1 semitones
+	- Chopin: 63.0 semitones
 	- Mozart: 55.3 semitones
 
 ### Feature-space insight
 
 - The master workflow retains note sequences rather than reducing the task to
 	summary features, allowing both baselines to model pitch and timing patterns.
+- Standardized PCA explains 47.1% and 18.5% of variance in its first two
+	components (65.6% cumulative), but composer classes still overlap heavily.
+- Note count correlates with duration ($r = .69$), supporting the use of note
+	density and sequence timing rather than raw counts alone.
 
 ### Modeling decisions informed by EDA
 
@@ -89,25 +93,27 @@ on Apple Silicon. The held-out test split was not used.
 
 Early runs without regularization showed clear overfitting: training accuracy
 kept climbing past 90% (CNN: 96.8%) while validation loss stopped improving and
-became unstable. Both baselines now use Adam with weight decay (1e-4) and stop
-training once validation accuracy has not improved for 5 consecutive epochs.
+became unstable. Both baselines now use Adam with weight decay (1e-4), retain
+the best validation checkpoint, and apply a five-epoch early-stopping criterion.
 
 | Model | Best validation epoch | Accuracy | Weighted F1 | Macro F1 |
 |---|---:|---:|---:|---:|
-| LSTM | 6 | 0.743 | 0.738 | 0.606 |
-| CNN | 9 | **0.826** | **0.823** | **0.740** |
+| LSTM | 6 | 0.759 | 0.748 | 0.622 |
+| CNN | 18 | **0.822** | **0.812** | **0.710** |
 
-The CNN improved validation accuracy by 8.3 percentage points and weighted F1
-by 8.5 points. At its selected checkpoint the CNN's training accuracy (82.8%)
-nearly matches its validation accuracy (82.6%), a much smaller generalization
-gap than the unregularized run. The generated loss curves and validation
-confusion matrices are tracked in [`figures/`](figures).
+In this seeded MPS run, the CNN improved validation accuracy by 6.3 percentage
+points and weighted F1 by 6.4 points. A separate evaluation of the selected CNN
+checkpoint measured 98.2% training accuracy versus 82.2% validation accuracy,
+so substantial overfitting remains despite regularization and checkpoint
+selection. Accelerator kernels can produce run-to-run variation even with fixed
+data splits and random seeds. Generated EDA, loss, and confusion-matrix figures
+are tracked in [`figures/`](figures).
 
 ## Methods
 The project includes:
 
 - MIDI data loading (via Kaggle download)
-- Data filtering and train/dev/test splitting
+- Data filtering and train/validation/test splitting
 - Data preprocessing
 - Feature extraction
 - Label encoding
@@ -171,6 +177,7 @@ available.
 pixi run check-imports
 pixi run prepare-dataset
 pixi run notebook
+pixi run test
 ```
 
 To execute the master noninteractively after preparation:

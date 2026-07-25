@@ -11,10 +11,11 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 
 from data_pipeline import MANIFEST_PATH, build_clean_manifest, load_manifest, load_or_extract_metadata
+from eda import EDAAnalysis, analyze_training_metadata
 from features import SplitFeatures, build_split_features
 from models import CNNComposerClassifier, ComposerDataset, LSTMComposerClassifier, class_weights
 from project_config import COMPOSERS, MODELS_DIR, SEED
-from training import Evaluation, choose_device, train_lstm
+from training import Evaluation, choose_device, evaluate, train_lstm
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,7 @@ class ExperimentData:
     inventory: pd.DataFrame
     train_metadata: pd.DataFrame
     eda_summary: pd.DataFrame
+    eda_analysis: EDAAnalysis
     split_features: SplitFeatures
     train_loader: DataLoader
     validation_loader: DataLoader
@@ -53,6 +55,7 @@ class BaselineResult:
 
     model: nn.Module
     history: dict[str, list[float]]
+    training: Evaluation
     validation: Evaluation
     class_weights: torch.Tensor
 
@@ -95,6 +98,7 @@ def prepare_experiment(config: ExperimentConfig = ExperimentConfig()) -> Experim
         "mean_pitch",
     ]
     eda_summary = train_metadata.groupby("composer")[eda_columns].mean().round(2).reindex(COMPOSERS)
+    eda_analysis = analyze_training_metadata(train_metadata)
 
     split_features = build_split_features(manifest, max_length=config.max_sequence_length)
     device = choose_device()
@@ -110,6 +114,7 @@ def prepare_experiment(config: ExperimentConfig = ExperimentConfig()) -> Experim
         inventory=inventory,
         train_metadata=train_metadata,
         eda_summary=eda_summary,
+        eda_analysis=eda_analysis,
         split_features=split_features,
         train_loader=DataLoader(
             ComposerDataset(train_features, train_labels), batch_size=batch_size, shuffle=True
@@ -142,9 +147,11 @@ def run_lstm_baseline(
         checkpoint_path=MODELS_DIR / "best_lstm_model.pt",
         early_stopping_patience=config.early_stopping_patience,
     )
+    training = evaluate(model, data.train_loader, criterion, data.device)
     return BaselineResult(
         model=model,
         history=history,
+        training=training,
         validation=validation,
         class_weights=weights.detach().cpu(),
     )
@@ -171,9 +178,11 @@ def run_cnn_baseline(
         checkpoint_path=MODELS_DIR / "best_cnn_model.pt",
         early_stopping_patience=config.early_stopping_patience,
     )
+    training = evaluate(model, data.train_loader, criterion, data.device)
     return BaselineResult(
         model=model,
         history=history,
+        training=training,
         validation=validation,
         class_weights=weights.detach().cpu(),
     )

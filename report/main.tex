@@ -35,10 +35,10 @@
   consume fixed-length sequences of pitch, velocity, note duration, and onset
   interval. Inverse-frequency class weights address the imbalanced training
   distribution, and Adam weight decay with validation-based early stopping
-  curbs the overfitting observed when training ran a fixed 20 epochs. On the
-  shared validation split, the CNN achieved .826 accuracy, exceeding the
-  LSTM's .743. Both models are selected only with validation performance; the
-  test split remains reserved for final evaluation.}
+  mitigates the overfitting observed when training ran a fixed 20 epochs. In
+  one seeded run on the shared validation split, the CNN achieved .822 accuracy,
+  exceeding the LSTM's .759. Both models are selected only with validation
+  performance; the test split remains reserved for final evaluation.}
 
 \keywords{composer classification, MIDI, deep learning, LSTM, CNN, reproducibility, music information retrieval}
 
@@ -60,6 +60,13 @@ convolutional architectures that motivate the CNN comparison using a
 structured music representation. \textcite{Kingma2015} introduced the Adam
 optimizer used to train both baselines.
 
+Symbolic-music classification commonly combines engineered representations with
+statistical or machine-learning models. 	extcite{Conklin2013} demonstrated how
+multiple musical viewpoints can support classification, while
+  extcite{McKay2018} presented jSymbolic, a reproducible framework for extracting
+features from symbolic music. The present comparison instead learns directly
+from fixed-length note sequences while retaining aggregate features for EDA.
+
 \section{Method}
 
 \subsection{Dataset}
@@ -70,11 +77,13 @@ composers: Bach, Beethoven, Chopin, and Mozart. The helper script
 \texttt{src/prepare\_dataset.py} downloads the archive (when
 \texttt{{\raise.17ex\hbox{$\scriptstyle\sim$}}/.kaggle/kaggle.json} is
 configured), extracts the four composer folders, and creates reproducible
-training, validation, and test splits using a fixed random seed. A clean
-file-level manifest excludes unreadable files and exact duplicates before
-creating a stratified 70/15/15 split. The manifest is reused unless the raw
-corpus changes, preventing accidental resampling between experiments. Class
-balance across the cleaned corpus is reported in the accompanying master notebook.
+filtered copies for optional inspection. The modeling workflow does not use
+those copied splits. Instead, 	exttt{src/data\_pipeline.py} scans the four raw
+composer folders, excludes unreadable files and exact duplicates, and creates
+the controlling stratified 70/15/15 train, validation, and test manifest with a
+fixed random seed. The manifest is reused unless regeneration is explicitly
+requested, preventing accidental resampling between experiments. Class balance
+across the cleaned corpus is reported in the accompanying master notebook.
 
 The cleaned corpus contains 1,608 MIDI files: 1,125 training, 241 validation,
 and 242 test files. Twenty-two files were excluded as malformed or exact
@@ -144,12 +153,22 @@ summary statistics alone are insufficient for reliable classification. This
 motivated the sequence-based LSTM representation, which preserves temporal and
 structural information that aggregate statistics discard.
 
-Quantitatively, the first principal component explained 40.1\% of variance and
-the second explained 14.7\% (54.8\% cumulative), which is not enough to produce
-clear class clusters in two dimensions. Correlation analysis also indicated
-that raw note count and duration are strongly coupled, so we prioritize derived
-features such as note density and temporal representations that preserve
-rhythmic structure rather than relying only on aggregate counts.
+Quantitatively, the first principal component explained 47.1\% of variance and
+the second explained 18.5\% (65.6\% cumulative), yet the composer classes still
+overlap heavily in two dimensions. Correlation analysis found that raw note
+count and duration are coupled ($r = .69$), so we prioritize derived features
+such as note density and temporal representations that preserve rhythmic
+structure rather than relying only on aggregate counts. Both analyses are
+computed by the canonical master workflow from training rows only and are shown
+in Figure~\ref{fig:eda-analysis}.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=.48\textwidth]{../figures/eda_pca.png}
+  \includegraphics[width=.48\textwidth]{../figures/eda_correlation.png}
+  \caption{Training-split PCA scores (left) and EDA feature correlations (right).}
+  \label{fig:eda-analysis}
+\end{figure}
 
 \subsection{Preprocessing and Feature Extraction}
 For both model inputs, notes are ordered by onset, pitch, and end time. Each note is
@@ -201,10 +220,10 @@ remains held out.
 
 \section{Results}
 The master notebook evaluated both baselines on the same 241-file validation
-split. The CNN was the stronger validation model, improving accuracy by 8.3
-percentage points and weighted F1 by 8.5 percentage points over the LSTM.
-Table~\ref{tab:results} reports the selected checkpoints. The 242-file test
-split remains sealed.
+split. In this seeded MPS run, the CNN was the stronger validation model,
+improving accuracy by 6.3 percentage points and weighted F1 by 6.4 percentage
+points over the LSTM. Table~\ref{tab:results} reports the selected checkpoints.
+The 242-file test split remains sealed.
 
 \begin{table}[htbp]
   \centering
@@ -215,25 +234,24 @@ split remains sealed.
       \toprule
       Model & Epoch & Accuracy & \shortstack{Weighted\\F1} & \shortstack{Macro\\F1} & Test evaluation \\
       \midrule
-      LSTM baseline & 6 & .743 & .738 & .606 & Reserved \\
-      CNN baseline & 9 & .826 & .823 & .740 & Reserved \\
+      LSTM baseline & 6 & .759 & .748 & .622 & Reserved \\
+      CNN baseline & 18 & .822 & .812 & .710 & Reserved \\
       \bottomrule
     \end{tabular}
-    \tablenote{Metrics are from the validation-selected, early-stopped checkpoints
-      trained with weight-decayed Adam on the fixed clean manifest. The test
-      split was not evaluated.}
+    \tablenote{Metrics are from validation-selected checkpoints trained with
+      weight-decayed Adam on the fixed clean manifest. The test split was not
+      evaluated.}
   \end{threeparttable}
 \end{table}
 
-Figure~\ref{fig:loss-curves} shows that both models triggered early stopping
-well before the 20-epoch budget (LSTM at epoch 11, CNN at epoch 14), which
-supports checkpoint selection rather than using the final epoch. At its
-selected checkpoint, the CNN's training accuracy (82.8\%) nearly matches its
-validation accuracy (82.6\%), a far smaller generalization gap than the
-unregularized run. Figures~\ref{fig:lstm-matrix} and \ref{fig:cnn-matrix} show
-the class-level outcome. The CNN improved recall for Chopin (.800 versus .600)
-and Beethoven (.677 versus .323), while both models continued to underperform
-on Beethoven and Mozart relative to Bach.
+Figure~\ref{fig:loss-curves} shows that the LSTM triggered early stopping at
+epoch 11, while the CNN reached the 20-epoch budget and retained its epoch-18
+checkpoint. A separate evaluation of that restored CNN checkpoint measured
+98.2\% training accuracy and 82.2\% validation accuracy, confirming that
+substantial overfitting remains. Figure~\ref{fig:validation-matrices} shows the
+class-level outcome. The CNN improved recall for Chopin (.800 versus .650) and
+Beethoven (.613 versus .258), while both models continued to underperform on
+Beethoven and Mozart relative to Bach.
 
 \begin{figure}[htbp]
   \centering
@@ -248,8 +266,7 @@ on Beethoven and Mozart relative to Bach.
   \includegraphics[width=.48\textwidth]{../figures/lstm_validation_confusion_matrix.png}
   \includegraphics[width=.48\textwidth]{../figures/cnn_validation_confusion_matrix.png}
   \caption{Validation confusion matrices for the LSTM (left) and CNN (right).}
-  \label{fig:lstm-matrix}
-  \label{fig:cnn-matrix}
+  \label{fig:validation-matrices}
 \end{figure}
 
 \section{Discussion}
@@ -263,16 +280,19 @@ recall for Beethoven and Mozart.
 
 Weight decay and validation-based early stopping were necessary additions: an
 earlier unregularized run reached over 90\% training accuracy for both
-architectures while validation loss stagnated or worsened, which would have
-inflated any eventual test-set claim. Selecting checkpoints from a
-regularized, early-stopped run gives a more defensible estimate of
-generalization before the test split is finally opened.
+architectures while validation loss stagnated or worsened. The selected CNN
+checkpoint still exhibits a 16.0-point train--validation accuracy gap, however,
+so regularization mitigates but does not eliminate overfitting. Checkpoint
+selection gives a more defensible validation estimate, but it does not replace
+the final held-out test evaluation.
 
 The workflow establishes a fair comparison condition: both architectures use the
 same fixed manifest, feature transformation, class weighting, and test-isolation
 policy. Their final hyperparameters should be selected only from validation
 performance, then both final models should be evaluated once on the held-out test
-split.
+split. Because the reported comparison is one seeded accelerator run, it should
+be interpreted descriptively rather than as evidence of stable architectural
+superiority; repeated seeds would be required to quantify run-to-run variance.
 
 \section{Conclusion}
 This project establishes a reproducible symbolic-MIDI composer-classification
@@ -280,8 +300,8 @@ pipeline and implements LSTM and CNN baselines. Pixi locks the software environm
 the clean manifest locks file assignments, cached EDA avoids unnecessary MIDI
 reparsing, and the master notebook presents the results while reusable logic
 remains in version-controlled modules. Under the shared validation protocol, the
-CNN outperformed the LSTM. The next step is one held-out test evaluation of the
-validation-selected CNN and LSTM checkpoints.
+CNN achieved the higher score in this validation run. The next step is one
+held-out test evaluation of the validation-selected CNN and LSTM checkpoints.
 
 \printbibliography
 

@@ -17,6 +17,7 @@ pytorch = ">=2.5,<3"
 ipykernel = ">=6.29,<7"
 jupyterlab = ">=4,<5"
 kaggle = ">=1.6,<2"
+pytest = ">=8,<9"
 
 [pypi-dependencies]
 pretty_midi = ">=0.2.10,<0.3"
@@ -25,3 +26,4 @@ pretty_midi = ">=0.2.10,<0.3"
 notebook = "jupyter lab"
 prepare-dataset = "python src/prepare_dataset.py"
 check-imports = "python -c \"import numpy, pandas, pretty_midi, sklearn, matplotlib, seaborn, torch; print(f'PyTorch {torch.__version__}; MPS available: {torch.backends.mps.is_available()}; CUDA available: {torch.cuda.is_available()}')\""
+test = { cmd = "python -m pytest tests -q", env = { PYTHONPATH = "src" } }
