@@ -152,9 +152,9 @@ pip install -r requirements.txt
 
 ## Team Members
 
-See [CNN Architecture and Hyperparameter Search Notes](cnn_architecture_and_hyperparameter_notes.md) for a technical breakdown of the CNN layers and an explanation of every hyperparameter tested.
-
-
 - Marston Ward
 - Josue Sandoval
 - Saman Tavasoli
+
+  
+See [CNN Architecture and Hyperparameter Search Notes](cnn_architecture_and_hyperparameter_notes.md) for a technical breakdown of the CNN layers and an explanation of every hyperparameter tested.
