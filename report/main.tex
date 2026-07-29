@@ -10,7 +10,7 @@
 \usepackage{array}
 \usepackage{graphicx}
 
-\title{Composer Classification from Symbolic MIDI: LSTM and CNN Baselines on a Fixed File-Level Split}
+\title{Classifying Composers from MIDI: A Comparison of LSTM and CNN Models}
 \shorttitle{Composer Classification with Deep Learning}
 
 \authorsnames{Marston Ward, Josue Sandoval, and Saman Tavasoli}
@@ -20,112 +20,102 @@
 \professor{Professor Andrew Van Benschoten}
 \duedate{\today}
 
-\abstract{This paper compares deep learning baselines for attributing classical
-  MIDI files to Bach, Beethoven, Chopin, or Mozart. After unreadable files and
-  exact byte duplicates were removed, individual MIDI files were assigned to a
-  fixed, stratified train, validation, and test manifest; movements from the same
-  work were not grouped. PyTorch long short-term memory (LSTM) and
-  one-dimensional convolutional neural network (CNN) models consume fixed-length
-  sequences of pitch, velocity, note duration, and onset interval. Class-weighted
-  loss addresses training-set imbalance, while weight decay and validation-based
-  early stopping constrain model fitting. At their selected checkpoints in one
-  seeded MPS run, the CNN achieved .822 validation accuracy and .812 weighted F1,
-  compared with .759 accuracy and .748 weighted F1 for the LSTM. Local pattern
-  detection is one plausible explanation for the CNN's advantage, but a single
-  run without architecture ablations cannot identify the cause. The CNN's .982
-  training accuracy and .822 validation accuracy also show substantial
-  overfitting on this split. The CNN is therefore the stronger baseline on this
-  file-level validation split, but cross-partition works, nondeterministic
-  training, and the held-out test set preclude claims of stable or unseen-work
-  generalization. The highest-priority improvements are work-grouped data
-  partitions, repeated deterministic runs, and controlled architecture and
-  regularization ablations before one final test-set evaluation.}
+\abstract{This paper compares two deep learning models that classify classical
+  MIDI files as works by Bach, Beethoven, Chopin, or Mozart. We removed unreadable
+  files and exact duplicates. We then placed each file into a fixed training,
+  validation, or test split. Movements from the same work were not kept together.
+  The long short-term memory (LSTM) and convolutional neural network (CNN) models
+  use sequences of pitch, velocity, note duration, and time between notes. Class
+  weights reduce the effect of an uneven class distribution. We addressed
+  overfitting with weight decay and validation-based early stopping. In one
+  seeded MPS run, the CNN reached .822 validation accuracy and .812 weighted F1.
+  The LSTM reached .759 accuracy and .748 weighted F1. The CNN may have benefited
+  from learning short local note patterns, but one run cannot prove why it
+  performed better. Even after addressing overfitting, the CNN reached .982
+  training accuracy compared with .822 validation accuracy. This gap shows that
+  substantial overfitting remained. The controls were likely not strong enough:
+  the 106,916-parameter CNN had only 1,125 training files, dropout was applied
+  only after pooling, no data augmentation was used, and training reached the
+  20-epoch limit before early stopping could trigger. The CNN was the stronger
+  model on this validation split, but the results do not yet show reliable
+  performance on new musical works. Future work should group files by musical
+  work, repeat the experiment, and evaluate the final models once on the
+  untouched test set.}
 
 \keywords{composer classification, MIDI, deep learning, LSTM, CNN, music information retrieval}
 
 \begin{document}
 \maketitle
 
-Automatic composer identification is a long-standing music information retrieval
-problem: given a piece of music, predict which composer wrote it. Symbolic
-representations such as MIDI expose pitch, duration, and timing information
-directly, without the confounds of audio timbre or recording conditions, making
-them a natural substrate for sequence and pattern-based deep learning models.
+Automatic composer identification asks a simple question: who wrote a piece of
+music? MIDI files store notes, timing, and duration directly. Unlike audio, they
+do not include differences caused by singers, instruments, microphones, or
+recording rooms. This makes MIDI useful for models that learn musical sequences
+and patterns.
 
 \section{Related Work}
 \textcite{Hochreiter1997} introduced the long short-term memory architecture,
-which remains a standard approach for modeling long-range dependencies in
-sequential data such as musical note sequences. \textcite{LeCun2015} describe
-convolutional architectures that motivate the CNN comparison using a
-structured music representation. \textcite{Kingma2015} introduced the Adam
-optimizer used to train both baselines.
+which can learn relationships across a sequence. This makes it suitable for
+ordered musical notes. \textcite{LeCun2015} describe convolutional networks,
+which learn short local patterns. \textcite{Kingma2015} introduced Adam, the
+optimizer used to train both models.
 
-Symbolic-music classification commonly combines engineered representations with
-statistical or machine-learning models. \textcite{Conklin2013} demonstrated how
-multiple musical viewpoints can support classification, while
-\textcite{McKay2018} presented jSymbolic, a reproducible framework for extracting
-features from symbolic music. The present comparison instead learns directly
-from fixed-length note sequences while retaining aggregate features for EDA.
+Earlier studies often combine selected musical features with statistical or
+machine-learning models. \textcite{Conklin2013} showed that several views of a
+musical piece can improve classification. \textcite{McKay2018} presented
+jSymbolic, a tool for extracting features from symbolic music. Our models learn
+from note sequences instead. We use summary features only for exploratory data
+analysis (EDA).
 
 \section{Method}
 
 \subsection{Dataset}
-The dataset used for this project is the \textit{MIDI Classic Music} corpus from
-Kaggle \parencite{FedorakND}. Kaggle identifies the archive as Version 1 and
-lists its license as unknown. The archive contains MIDI files for many
-classical composers; for this study we filtered it to the four required
-composers: Bach, Beethoven, Chopin, and Mozart. The helper script
+This project uses the \textit{MIDI Classic Music} dataset from Kaggle
+\parencite{FedorakND}. Kaggle lists it as Version 1 with an unknown license. The
+dataset contains MIDI files from many composers. We kept files by Bach,
+Beethoven, Chopin, and Mozart. The helper script
 \texttt{src/prepare\_dataset.py} downloads the archive (when
 \texttt{{\raise.17ex\hbox{$\scriptstyle\sim$}}/.kaggle/kaggle.json} is
-configured), extracts the four composer folders, and creates
-filtered copies for optional inspection. The modeling workflow does not use
-those copied splits. Instead, \texttt{src/data\_pipeline.py} scans the four raw
-composer folders, excludes unreadable files and exact duplicates, and creates
-the controlling stratified 70/15/15 file-level train, validation, and test
-manifest with a fixed random seed. The manifest is reused unless regeneration is
-explicitly requested, preventing accidental resampling between experiments.
-Files are not grouped by musical work, catalog number, or source collection;
-for example, movements of Mozart's Symphony No. 40, K. 550 occur in all three
-partitions. Consequently, the validation results measure performance on held-out
-files from this corpus and may be optimistic for unseen works. Class balance
-across the cleaned corpus is reported in the accompanying master notebook.
+configured) and extracts these four composer folders. It also creates filtered
+copies for inspection, but the models do not use those copies.
 
-The cleaned corpus contains 1,608 MIDI files: 1,125 training, 241 validation,
-and 242 test files. Twenty-two files were excluded as malformed or exact
-duplicates. Bach accounts for roughly 63\% of the training files (709 of
-1,125), whereas Chopin contributes 8\% (92 of 1,125). To reduce majority-class
-bias, both models use class-weighted cross-entropy loss. We report validation
-accuracy, per-class precision, recall, F1 scores, and a confusion matrix; the
-test split is not used during baseline development.
+The modeling pipeline scans the raw composer folders. It removes unreadable files
+and exact duplicates. It then uses a fixed random seed to create a stratified
+70/15/15 split for training, validation, and testing. The saved split is reused
+unless the user asks to rebuild it. This keeps file assignments the same between
+runs. However, the split does not group files by musical work, catalog number,
+or collection. For example, movements of Mozart's Symphony No. 40, K. 550 appear
+in all three splits. The validation score may therefore be too high for truly
+new works. The master notebook reports the class counts.
+
+After cleaning, 1,608 MIDI files remain. The training split has 1,125 files, the
+validation split has 241, and the test split has 242. We removed 22 malformed or
+duplicate files. Bach makes up about 63\% of the training data (709 files), while
+Chopin makes up 8\% (92 files). Both models use class-weighted cross-entropy loss
+to reduce bias toward Bach. We report validation accuracy, precision, recall, F1
+scores, and confusion matrices. We do not use the test split during model
+development.
 
 \subsection{Computational Workflow}
-The repository uses Pixi to create a project-local, locked Python 3.12
-environment, and the saved manifest fixes file assignments. After
-\texttt{pixi install}, collaborators run \texttt{pixi run
-prepare-dataset} to obtain the raw corpus and \texttt{pixi run notebook} to
-launch the master notebook. The environment selects Apple Metal Performance
-Shaders (MPS) when available, then CUDA, and finally CPU. These controls make the
-software environment and preprocessing repeatable, but exact training metrics
-are not guaranteed across runs or devices because deterministic PyTorch
-algorithms are not enforced and device-specific batch sizes differ. The master
-notebook is an orchestration and reporting document: reusable data preparation,
-feature extraction, model, training, and visualization logic resides in
-\texttt{src/}.
+Pixi provides a locked Python 3.12 environment, and the saved manifest keeps file
+assignments fixed. After \texttt{pixi install}, users run \texttt{pixi run
+prepare-dataset} to get the data and \texttt{pixi run notebook} to open the
+master notebook. The code uses Apple MPS when available, then CUDA, and finally
+the CPU. The environment and preprocessing steps can be repeated. Exact model
+scores may still change because PyTorch is not forced to use deterministic
+algorithms, and batch size differs by device. The notebook runs the workflow and
+presents the results. Reusable code is stored in \texttt{src/}.
 
-MIDI-level EDA metadata are saved to
-\texttt{dataset/processed/eda\_metadata.csv} after the initial parse. Subsequent
-runs load this cache unless an explicit refresh is requested. Thus, the notebook
-presents the same training-split EDA tables and plots without reparsing every
-MIDI file on each model run. Because the cache is not automatically validated
-against the manifest, it must be refreshed after intentional data or manifest
-changes.
+The first run saves EDA data to
+\texttt{dataset/processed/eda\_metadata.csv}. Later runs load this file instead
+of reading every MIDI file again. Users must refresh the file after changing the
+data or split because the code does not check it automatically.
 
 \subsection{Exploratory Data Analysis}
-Before modeling, metadata are extracted for the clean manifest: duration, tempo,
-note count, note density, pitch range, and mean pitch. The cached metadata are
-summarized only on the training split, protecting validation and test files from
-informing exploratory decisions. Table~\ref{tab:eda-summary} summarizes these
-features by composer.
+Before training, we measure duration, tempo, note count, note density, pitch
+range, and mean pitch. We summarize only the training files, so validation and
+test files do not shape the analysis. Table~\ref{tab:eda-summary} shows the mean
+values for each composer.
 
 \begin{table}[htbp]
   \centering
@@ -148,31 +138,27 @@ features by composer.
   \end{threeparttable}
 \end{table}
 
-Three descriptive patterns informed feature selection. First, mean note density
-differs across composers---Bach averages 9.3 notes/s while Beethoven averages
-14.5 notes/s---whereas raw note count is correlated with file duration. Second,
-mean pitch range is lower for Bach ($M = 43.1$ semitones) than for Beethoven and
-Chopin ($M \approx 62$ semitones). These corpus-level differences may also
-reflect instrumentation, arrangement, source, or MIDI-encoding conventions and
-do not establish causal stylistic or historical explanations. Third, tempo and
-note velocity can reflect encoding defaults rather than performed values, so
-they are interpreted cautiously.
+Three patterns helped guide feature selection. First, note density differs by
+composer. Bach averages 9.3 notes per second, while Beethoven averages 14.5.
+Raw note count is also tied to file length. Second, Bach has a smaller mean pitch
+range ($M = 43.1$ semitones) than Beethoven and Chopin ($M \approx 62$). These
+differences may come from instrumentation, arrangements, data sources, or MIDI
+encoding, not only from composing style. Third, tempo and velocity may reflect
+how a MIDI file was created rather than how the music was performed. We therefore
+treat these values with care.
 
-A principal component analysis of the engineered statistical features showed
-substantial class overlap in its first two components. This limited visual
-separation motivated testing sequence representations that preserve temporal and
-structural information, but it does not establish that all summary-feature
-classifiers would fail: the plot omits 34.4\% of standardized variance, and no
-engineered-feature classifier was evaluated.
+Principal component analysis (PCA) showed strong overlap between composers in
+the first two components. This led us to test models that keep note order and
+timing. However, the PCA plot leaves out 34.4\% of the standardized variance, and
+we did not test a classifier based only on summary features. The plot therefore
+does not prove that summary features cannot work.
 
-Quantitatively, the first principal component explained 47.1\% of variance and
-the second explained 18.5\% (65.6\% cumulative), yet the composer classes still
-overlap heavily in two dimensions. Correlation analysis found that raw note
-count and duration are coupled ($r = .69$), so we prioritize derived features
-such as note density and temporal representations that preserve rhythmic
-structure rather than relying only on aggregate counts. Both analyses are
-computed by the canonical master workflow from training rows only and are shown
-in Figure~\ref{fig:eda-analysis}.
+The first PCA component explains 47.1\% of the variance, and the second explains
+18.5\%. Together they explain 65.6\%, but the composers still overlap in the
+plot. Note count and duration are also related ($r = .69$). For this reason, we
+use note density and sequence features instead of relying only on total note
+counts. Figure~\ref{fig:eda-analysis} shows both analyses, which use training
+data only.
 
 \begin{figure}[htbp]
   \centering
@@ -183,60 +169,53 @@ in Figure~\ref{fig:eda-analysis}.
 \end{figure}
 
 \subsection{Preprocessing and Feature Extraction}
-For both model inputs, notes are ordered by onset, pitch, and end time. Each note is
-represented by four values: a pitch token in $[1,128]$, MIDI velocity, duration,
-and elapsed time since the preceding onset. A zero token marks padded positions.
-Sequences are truncated or padded to 4,096 notes. Velocity, duration, and onset
-interval are normalized with statistics estimated from nonpadding notes in the
-training split only; those same statistics are then applied to validation and
-test data. This prevents leakage from validation or test distributions into the
-feature transformation.
+For both models, notes are sorted by start time, pitch, and end time. Each note
+has four values: pitch, velocity, duration, and time since the previous note.
+Pitch uses values from 1 to 128, while zero marks padding. Every sequence is cut
+or padded to 4,096 notes. We calculate the mean and standard deviation for the
+continuous features from nonpadding training notes only. We then use those same
+values for validation and test data. This prevents information from those splits
+from entering the feature preparation step.
 
 \subsection{Model Architectures}
 
 \subsubsection{LSTM Model}
-The implemented baseline embeds the pitch token into 32 dimensions, concatenates
-the embedding with the three normalized continuous features, and passes the
-result through a one-layer LSTM with 64 hidden units. Dropout ($p = .30$) is
-applied to the final state before a four-unit linear classifier. The final state
-corresponding to the last nonpadding note is used for prediction, so padding does
-not determine the piece representation.
+The LSTM changes each pitch into a 32-value embedding and joins it with the three
+continuous features. A one-layer LSTM with 64 hidden units processes the
+sequence. The model uses the state at the last real note, so padded notes do not
+choose the prediction. It then applies 30\% dropout and a four-class output
+layer.
 
 \subsubsection{CNN Model}
-The implemented one-dimensional CNN uses the same 32-dimensional pitch embedding
-and three normalized continuous features as the LSTM. The concatenated
-35-channel note representation passes through convolutional blocks with 64,
-128, and 128 filters. The first two blocks use kernels of width five and
-four-note max pooling; the third uses a kernel of width three. Batch
-normalization and ReLU follow each convolution. Adaptive global max pooling
-creates a piece-level representation, which passes through dropout ($p = .30$)
-and a four-unit linear classifier. The CNN uses the same clean manifest, split
-assignments, training-only normalization, class-weighting strategy, and
-validation-based model selection as the LSTM.
+The CNN uses the same pitch embedding and continuous features. It has three
+convolution blocks with 64, 128, and 128 filters. The first two blocks use
+five-note kernels and four-note max pooling. The third uses a three-note kernel.
+Each convolution is followed by batch normalization and ReLU. Global max pooling
+creates one representation for the file. The model then applies 30\% dropout and
+a four-class output layer. Both models use the same files, normalization, class
+weights, and validation-based selection process.
 
 \subsection{Training}
 Both baselines are trained for up to 20 epochs with Adam \parencite{Kingma2015}
-at a learning rate of .001 and a weight decay of $1\times10^{-4}$. Inverse-frequency
-class weights are computed from the training labels as $w_c = N/(K n_c)$, where
-$N$ is the number of training files, $K$ is the number of classes, and $n_c$ is
-the number of files for class $c$. Gradients are clipped to a maximum norm of
-1.0. At every epoch, the model is evaluated on the validation split. The
-checkpoint with the highest validation accuracy is retained; validation loss
-breaks ties. Training stops early once five consecutive epochs pass without a
-new best checkpoint. In the reported weight-decayed run, CNN training accuracy
-reached 96.8\% at epoch 20 while validation loss was unstable, and the LSTM's
-validation loss began rising after epoch 10 despite falling training loss. These
-patterns show that the configured regularization did not eliminate overfitting;
-no preserved ablation isolates the effects of weight decay or early stopping.
-Neither augmentation nor a test result is claimed because the test split remains
-held out.
+at a learning rate of .001 and weight decay of $1\times10^{-4}$. Class weights
+are $w_c = N/(K n_c)$, where $N$ is the number of training files, $K$ is the
+number of classes, and $n_c$ is the number of files in class $c$. Gradients are
+clipped at 1.0.
+
+After each epoch, the model is tested on the validation split. We save the model
+with the highest validation accuracy, using lower validation loss to break a tie.
+Training stops after five epochs without a new best model. In this run, CNN
+training accuracy reached 96.8\% at epoch 20, while validation loss varied. The
+LSTM validation loss began to rise after epoch 10 even as training loss fell.
+These patterns show that overfitting remained. We did not run a separate test to
+measure the effects of weight decay or early stopping. We also did not use data
+augmentation or evaluate the test split.
 
 \section{Results}
-The master notebook evaluated both baselines on the same 241-file validation
-split. In this seeded MPS run, the CNN was the stronger validation model,
-improving accuracy by 6.2 percentage points and weighted F1 by 6.4 percentage
-points over the LSTM. Table~\ref{tab:results} reports the selected checkpoints.
-The 242-file test split remains sealed.
+The notebook evaluated both models on the same 241 validation files. In this
+seeded MPS run, the CNN scored 6.2 percentage points higher in accuracy and 6.4
+points higher in weighted F1. Table~\ref{tab:results} shows the selected models.
+The 242 test files were not used.
 
 \begin{table}[htbp]
   \centering
@@ -257,14 +236,15 @@ The 242-file test split remains sealed.
   \end{threeparttable}
 \end{table}
 
-Figure~\ref{fig:loss-curves} shows that the LSTM triggered early stopping at
-epoch 11, while the CNN reached the 20-epoch budget and retained its epoch-18
-checkpoint. A separate evaluation of that restored CNN checkpoint measured
-98.2\% training accuracy and 82.2\% validation accuracy, confirming that
-substantial overfitting remains. Figure~\ref{fig:validation-matrices} shows the
-class-level outcome. The CNN improved recall for Chopin (.800 versus .650) and
-Beethoven (.613 versus .258), while both models continued to underperform on
-Beethoven and Mozart relative to Bach.
+As Figure~\ref{fig:loss-curves} shows, the LSTM stopped after epoch 11 and kept
+its epoch-6 model. The CNN completed all 20 epochs and kept its epoch-18 model.
+The saved CNN reached 98.2\% accuracy on training data but only 82.2\% on
+validation data. This 16-point gap shows strong overfitting.
+
+Figure~\ref{fig:validation-matrices} shows results for each composer. Compared
+with the LSTM, the CNN improved recall for Chopin from .650 to .800 and for
+Beethoven from .258 to .613. Both models had more difficulty with Beethoven and
+Mozart than with Bach.
 
 \begin{figure}[htbp]
   \centering
@@ -283,64 +263,65 @@ Beethoven and Mozart relative to Bach.
 \end{figure}
 
 \section{Discussion}
-The validation comparison favors the CNN, but it is not a final generalization
-claim because the test split remains unused. The LSTM models sequence order,
-while the CNN preserves local ordered patterns before position-invariant global
-max pooling; both consume duration, velocity, and local timing information that
-the aggregate EDA summaries discard. Class weighting was applied because Bach
-dominates the training set; an unweighted ablation would be required to quantify
-its effect. The class-specific reports show that accuracy alone conceals lower
-recall for Beethoven and Mozart.
+The CNN performed better on the validation split, but this does not prove that it
+will perform better on new works. The LSTM learns the order of the full sequence.
+The CNN learns short ordered patterns and then uses global max pooling, which
+removes their exact positions. Both models use note duration, velocity, and
+timing that are missing from the EDA summaries.
 
-Weight decay and validation-based early stopping were applied to both models,
-but no preserved unregularized ablation supports a causal claim about how much
-either intervention improved generalization. The selected CNN checkpoint still
-exhibits about a 16-point train--validation accuracy gap. Validation-based
-checkpoint selection introduces within-run selection optimism; the held-out test
-evaluation is needed for the final estimate.
+We used class weights because Bach dominates the training data. However, we did
+not train an unweighted model, so we cannot measure how much the weights helped.
+In the same way, we cannot measure the separate effects of weight decay and early
+stopping. These methods may have limited overfitting, but they did not remove it.
+The CNN still has about a 16-point gap between training and validation accuracy.
 
-The CNN's stacked local filters and global max pooling offer one plausible
-explanation for its higher score, but this interpretation is post hoc. The CNN
-also differs from the LSTM in capacity, batch normalization, pooling, and
-padding treatment. Repeated seeds and controlled ablations would be required to
-attribute the observed difference to local-pattern detection.
+Several factors may explain why overfitting remained. The CNN has 106,916
+parameters but only 1,125 training files. Its 30\% dropout is applied only after
+global pooling, so the convolution blocks receive no dropout. The training data
+were not augmented. Early stopping also did not stop the CNN: its best model was
+at epoch 18, and the run reached the 20-epoch limit before the five-epoch patience
+period ended. These points are possible explanations, not proven causes, because
+we did not run controlled comparisons. Choosing the best epoch from validation
+results can also make the reported validation score look slightly better than it
+would on new data. A final test score is therefore still needed.
 
-The workflow establishes a fair comparison condition: both architectures use the
-same fixed manifest, feature transformation, class weighting, and test-isolation
-policy. Their final hyperparameters should be selected only from validation
-performance, then both final models should be evaluated once on the held-out test
-split. Because related movements and collections can occur across partitions,
-even that test would estimate file-level performance on this corpus rather than
-generalization to unseen works. The reported comparison is also one seeded
-accelerator run and should be interpreted descriptively rather than as evidence
-of stable architectural superiority; repeated seeds would be required to
-quantify run-to-run variance.
+The CNN may have done better because its filters can find short note patterns.
+However, the CNN and LSTM also differ in size, normalization, pooling, and how
+they handle padding. More runs and focused experiments are needed to find the
+real cause.
+
+The comparison is fair within this experiment because both models use the same
+files, features, class weights, and selection process. Still, related movements
+can appear in different splits. A final test on the current split would measure
+performance on held-out files, not necessarily on completely new musical works.
+The results also come from one seeded run. Repeating the experiment would show
+how much the scores change from run to run.
 
 \section{Conclusion}
-This project establishes a fixed file-level symbolic-MIDI
-composer-classification pipeline and implements LSTM and CNN baselines. Pixi
-locks the software environment, the manifest fixes file assignments, and the
-master notebook presents results from reusable version-controlled modules. Under
-the shared validation protocol, the CNN achieved the higher score in this run,
-but its train--validation gap shows that substantial overfitting remains. The
-evidence therefore identifies the CNN as the stronger baseline for this
-file-level split, not as a generally superior architecture. Claims about stable
-or unseen-work generalization require grouped work-level splits, repeated seeds,
-and a single final evaluation of models selected without test-set feedback.
+This project builds a fixed file-level MIDI pipeline and compares LSTM and CNN
+models. Pixi locks the software environment, the saved manifest keeps file
+assignments fixed, and the notebook runs reusable code from \texttt{src/}. The
+CNN scored higher in this validation run, but it also showed strong overfitting.
+It is therefore the better model for this split, not a proven better choice for
+all composer-classification tasks. Weight decay and early stopping addressed the
+problem, but they were not enough to remove it. The likely reasons include the
+CNN's size compared with the training set, dropout only after pooling, no data
+augmentation, and a training limit that ended before early stopping could stop
+the CNN. Controlled comparisons are needed to confirm the effect of each factor.
 
-The first improvement should be to assign a work or collection identifier before
-splitting so that related movements cannot cross partitions. Evaluation should
-then use repeated seeds with deterministic PyTorch settings, a fixed batch size
-across devices, and mean performance with run-to-run variation rather than one
-accelerator run. Controlled ablations should isolate the effects of class
-weighting, weight decay, early stopping, model capacity, and the CNN's pooling
-strategy; masking padded positions before global pooling would also remove
-sequence-length artifacts as a possible explanation for its advantage. If
-overfitting persists, stronger dropout, a smaller CNN, and musically valid pitch,
-tempo, or timing augmentation should be compared using validation data only.
-After those choices are fixed, the held-out test split should be evaluated once;
-a work-grouped test split would provide the most defensible estimate of
-generalization to previously unseen compositions.
+The most important improvement is to group files from the same work or collection
+before splitting the data. This would keep related movements in one split. The
+experiment should then be repeated with several seeds, deterministic PyTorch
+settings, and the same batch size on every device. Results should include the
+average score and the amount of variation between runs.
+
+Future experiments should test one design choice at a time. These tests should
+cover class weights, weight decay, early stopping, model size, and CNN pooling.
+The CNN should also mask padded notes before global pooling so that file length
+does not affect its representation. If overfitting remains, a smaller CNN,
+stronger dropout, and careful pitch, tempo, or timing changes could be tested.
+All choices should use validation data only. Once the design is fixed, the final
+models should be evaluated once on an untouched test set grouped by musical work.
 
 \printbibliography
 
