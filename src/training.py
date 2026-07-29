@@ -25,7 +25,7 @@ class Evaluation:
 
 
 def choose_device() -> torch.device:
-    """Prefer Apple Silicon MPS, then CUDA, and finally CPU."""
+    """Select an available hardware accelerator, then fall back to CPU."""
     if torch.backends.mps.is_available():
         return torch.device("mps")
     if torch.cuda.is_available():

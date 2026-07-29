@@ -28,7 +28,7 @@
   use sequences of pitch, velocity, note duration, and time between notes. Class
   weights reduce the effect of an uneven class distribution. We addressed
   overfitting with weight decay and validation-based early stopping. In one
-  seeded MPS run, the CNN reached .822 validation accuracy and .812 weighted F1.
+  seeded run, the CNN reached .822 validation accuracy and .812 weighted F1.
   The LSTM reached .759 accuracy and .748 weighted F1. The CNN may have benefited
   from learning short local note patterns, but one run cannot prove why it
   performed better. Even after addressing overfitting, the CNN reached .982
@@ -100,11 +100,12 @@ development.
 Pixi provides a locked Python 3.12 environment, and the saved manifest keeps file
 assignments fixed. After \texttt{pixi install}, users run \texttt{pixi run
 prepare-dataset} to get the data and \texttt{pixi run notebook} to open the
-master notebook. The code uses Apple MPS when available, then CUDA, and finally
-the CPU. The environment and preprocessing steps can be repeated. Exact model
-scores may still change because PyTorch is not forced to use deterministic
-algorithms, and batch size differs by device. The notebook runs the workflow and
-presents the results. Reusable code is stored in \texttt{src/}.
+master notebook. The code can run on supported hardware accelerators or a CPU,
+which makes the workflow portable across systems. The environment and
+preprocessing steps can be repeated. Exact model scores may still change because
+PyTorch is not forced to use deterministic algorithms, and batch size can differ
+across systems. The notebook runs the workflow and presents the results. Reusable
+code is stored in \texttt{src/}.
 
 The first run saves EDA data to
 \texttt{dataset/processed/eda\_metadata.csv}. Later runs load this file instead
@@ -213,7 +214,7 @@ augmentation or evaluate the test split.
 
 \section{Results}
 The notebook evaluated both models on the same 241 validation files. In this
-seeded MPS run, the CNN scored 6.2 percentage points higher in accuracy and 6.4
+seeded run, the CNN scored 6.2 percentage points higher in accuracy and 6.4
 points higher in weighted F1. Table~\ref{tab:results} shows the selected models.
 The 242 test files were not used.
 
@@ -312,7 +313,7 @@ the CNN. Controlled comparisons are needed to confirm the effect of each factor.
 The most important improvement is to group files from the same work or collection
 before splitting the data. This would keep related movements in one split. The
 experiment should then be repeated with several seeds, deterministic PyTorch
-settings, and the same batch size on every device. Results should include the
+settings, and the same batch size across systems. Results should include the
 average score and the amount of variation between runs.
 
 Future experiments should test one design choice at a time. These tests should

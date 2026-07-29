@@ -88,26 +88,25 @@ Exploratory data analysis (EDA) is run and cached by
 
 ## Current Validation Results
 
-The master notebook was executed on the fixed clean manifest using PyTorch MPS
-on Apple Silicon. The held-out test split was not used.
+The master notebook was executed on the fixed clean manifest. The held-out test
+split was not used.
 
-Early runs without regularization showed clear overfitting: training accuracy
-kept climbing past 90% (CNN: 96.8%) while validation loss stopped improving and
-became unstable. Both baselines now use Adam with weight decay (1e-4), retain
-the best validation checkpoint, and apply a five-epoch early-stopping criterion.
+Both baselines use Adam with weight decay (1e-4), retain the best validation
+checkpoint, and apply a five-epoch early-stopping criterion. These controls
+address overfitting, but they do not remove it.
 
 | Model | Best validation epoch | Accuracy | Weighted F1 | Macro F1 |
 |---|---:|---:|---:|---:|
 | LSTM | 6 | 0.759 | 0.748 | 0.622 |
 | CNN | 18 | **0.822** | **0.812** | **0.710** |
 
-In this seeded MPS run, the CNN improved validation accuracy by 6.3 percentage
+In this seeded run, the CNN improved validation accuracy by 6.2 percentage
 points and weighted F1 by 6.4 points. A separate evaluation of the selected CNN
 checkpoint measured 98.2% training accuracy versus 82.2% validation accuracy,
 so substantial overfitting remains despite regularization and checkpoint
-selection. Accelerator kernels can produce run-to-run variation even with fixed
-data splits and random seeds. Generated EDA, loss, and confusion-matrix figures
-are tracked in [`figures/`](figures).
+selection. Training can vary between runs even with fixed data splits and random
+seeds. Generated EDA, loss, and confusion-matrix figures are tracked in
+[`figures/`](figures).
 
 ## Methods
 The project includes:
@@ -165,12 +164,9 @@ master notebook in order:
 notebooks/master_composer_classification.ipynb
 ```
 
-On Apple Silicon, PyTorch automatically uses the Metal Performance Shaders (MPS)
-backend when it is available. `src/training.py`'s `choose_device()` prefers MPS,
-then falls back to CUDA on Linux/Windows machines with an NVIDIA GPU, and finally
-CPU. `pixi.toml` locks `osx-arm64`, `linux-64`, and `win-64`, so any teammate can
-run `pixi install` on their own machine and train with whichever accelerator is
-available.
+The training code selects an available hardware accelerator and falls back to
+the CPU. `pixi.toml` locks `osx-arm64`, `linux-64`, and `win-64`, so teammates can
+run `pixi install` and train on supported hardware.
 
 ### Useful Pixi Commands
 
