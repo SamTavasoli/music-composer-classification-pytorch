@@ -148,8 +148,9 @@ curl -fsSL https://pixi.sh/install.sh | sh
 pixi install
 ```
 
-Pixi creates `.pixi/` inside this repository. It is local to each collaborator
-and is not committed; `pixi.toml` and `pixi.lock` define the shared environment.
+Pixi creates `.pixi/` inside this repository with Python 3.12. It is local to
+each collaborator and is not committed; `pixi.toml` and `pixi.lock` define the
+shared environment.
 
 4. Start JupyterLab through Pixi:
 
@@ -157,8 +158,8 @@ and is not committed; `pixi.toml` and `pixi.lock` define the shared environment.
 pixi run notebook
 ```
 
-5. Select the Pixi Python environment as the VS Code notebook kernel, then run
-the master notebook in order:
+5. Select `Python 3.12 (Pixi)` as the VS Code notebook kernel, then run the
+master notebook in order:
 
 ```bash
 notebooks/master_composer_classification.ipynb
@@ -174,6 +175,7 @@ available.
 ### Useful Pixi Commands
 
 ```bash
+pixi run python --version
 pixi run check-imports
 pixi run prepare-dataset
 pixi run notebook
