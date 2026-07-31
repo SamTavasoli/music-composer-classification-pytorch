@@ -39,6 +39,7 @@ report/*.synctex.gz
 report/*.toc
 report/*.xdv
 report/*.pdf
+!report/main.pdf
 
 # Dataset — do not commit raw MIDI files or extracted archives
 
